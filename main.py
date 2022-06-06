@@ -35,12 +35,7 @@ class SmevRegisterCheck:
             reply = cursor.fetchall()
 
             data = []
-            """
-                "request_id": "wait-pass",
-                "request_date": "2022-05-26T08:10:03.815Z",
-                "response_ack": false,
-                "reject_id": "20222222"
-            """
+
             for row in reply:
                 adds = {
                     'request_id': row[0],
@@ -97,13 +92,10 @@ def main():
     print(f"logs at {logs_path}")
 
     src_handler = SmevRegisterCheck(ui_circuit)
-    select = "SELECT " \
-             "inbox.request_id, inbox.request_date, documents.response_ack, documents.reject_id " \
-             "FROM " \
-             "public.documents documents, public.inbox inbox " \
-             "where " \
-             "documents.inbox_id = inbox.id " \
-             "and inbox.request_date < '2022-06-03';"
+    select = "SELECT inbox.request_id, inbox.request_date, documents.response_ack, documents.reject_id " \
+             "FROM public.documents documents, public.inbox inbox " \
+             "where documents.request_id = inbox.request_id and inbox.request_date < '2022-06-03' " \
+             "order by inbox.id;"
     src_handler.operate(select)
     print('done')
 

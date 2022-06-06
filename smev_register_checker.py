@@ -42,7 +42,6 @@ class Checker:
                     ks.send_to_kafka(topic, js_out, producer)
                     self.logger.debug(f"success")
 
-
                 except Exception as e:
                     self.logger.error(e)
 
