@@ -1,11 +1,13 @@
-import json
-
 import logging
-from os import popen
+import os
+import sys
+
 from variables import *
 import smev_register_checker as src
+import psycopg2
 
 logging.basicConfig(format='%(asctime)s | %(levelname)s | %(message)s', filename='SmevRegisterCheck.log', filemode='w', level=logging.DEBUG)
+logging.getLogger(__name__)
 
 
 class SmevRegisterCheck:
@@ -18,19 +20,47 @@ class SmevRegisterCheck:
         self.__reply = None
 
     def __get_stats_from_db_data__(self, select):
-        from DBConnections import PostgreSqlConnection as PG
 
-        connection_data = db_connection_data[self.__circuit][self.__db_type][self.__db_name]
+        cd = db_connection_data[self.__circuit][self.__db_type][self.__db_name]
 
-        logging.debug(f'connect to db \n {connection_data}')
-        pg_con = PG(connection_data)
+        try:
+            connection = psycopg2.connect(user=cd['username'],
+                                          password=cd['password'],
+                                          host=cd['server'],
+                                          port=cd['port'],
+                                          database=cd['database'])
+            cursor = connection.cursor()
 
-        self.__reply = pg_con.fetchall(select)
-        logging.debug(f"select - {select}")
+            cursor.execute(select)
+            reply = cursor.fetchall()
 
-        pg_con.close()
-        pg_con.dump_json(self.__reply, f"{popen('pwd').read()}/db_reply.json")
-        logging.debug(f"save to {popen('pwd').read()}/db_reply.json")
+            data = []
+            """
+                "request_id": "wait-pass",
+                "request_date": "2022-05-26T08:10:03.815Z",
+                "response_ack": false,
+                "reject_id": "20222222"
+            """
+            for row in reply:
+                adds = {
+                    'request_id': row[0],
+                    'request_date': row[1],
+                    'response_ack': row[2],
+                    'reject_id': row[3],
+                }
+                data.append(adds)
+
+            self.__reply = data
+
+        except (Exception, psycopg2.Error) as error:
+            logging.error("Error while fetching data from PostgreSQL", error)
+
+        finally:
+            # closing database connection.
+            if connection:
+                cursor.close()
+                connection.close()
+                logging.debug("PostgreSQL connection is closed")
 
     def __send_answer__(self, data: dict = None):
         """
@@ -40,19 +70,32 @@ class SmevRegisterCheck:
         """
 
         if data is None:
-            src.Checker(self.__reply, self.__circuit)
+            ch = src.Checker(self.__reply, self.__circuit)
+            ch.check()
             return
 
         logging.debug("testing data validator")
-        src.Checker(data, self.__circuit)
+        ch = src.Checker(data, self.__circuit)
+        ch.check()
 
     def operate(self, select):
         logging.info("operate")
+        logging.debug(f"select - {select}")
         self.__get_stats_from_db_data__(select)
+
+        logging.debug(f'reply - {self.__reply}')
+
+        if self.__reply is None:
+            sys.exit("no reply")
+
         self.__send_answer__()
 
 
 def main():
+    cur_dir = os.popen('pwd').read().strip("\n")
+    logs_path = f'{cur_dir}/SmevRegisterCheck.log'
+    print(f"logs at {logs_path}")
+
     src_handler = SmevRegisterCheck(ui_circuit)
     select = "SELECT " \
              "inbox.request_id, inbox.request_date, documents.response_ack, documents.reject_id " \
@@ -62,19 +105,8 @@ def main():
              "documents.inbox_id = inbox.id " \
              "and inbox.request_date < '2022-06-03';"
     src_handler.operate(select)
-
-
-def test():
-    logging.debug("testing")
-    src_handler = SmevRegisterCheck(ui_circuit)
-
-    with open('./reply.json') as f:
-        file = f.read()
-        data = json.loads(file)
-
-    logging.debug(f"test reply:\n{data}")
-    src_handler.__send_answer__(data)
+    print('done')
 
 
 if __name__ == '__main__':
-    test()
+    main()

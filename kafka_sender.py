@@ -3,7 +3,7 @@ from random import randrange as rr
 import confluent_kafka as ck
 import logging
 
-logging.getLogger('root')
+logging.getLogger(__name__)
 
 
 def set_kafka_producer(srv: str, client_id: str = None, message_size: int = None):

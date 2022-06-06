@@ -1,5 +1,8 @@
 ui_circuit = 'test'
-ui_skip_kafka = True
+ui_skip_kafka = False
+
+# kafka_topic = 'smev-reg-realty-out'
+kafka_topic = 'test_out_1'
 
 srv = {
     'test': '10.10.4.28:9092',
